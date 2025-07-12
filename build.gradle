@@ -1,0 +1,41 @@
+plugins {
+    id 'java'
+    id 'application' // ✅ Add this
+}
+
+group = 'org.nsomatrix'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.formdev:flatlaf:3.2'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.15.2'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.2'
+
+}
+
+test {
+    useJUnitPlatform()
+}
+
+application {
+    mainClass = 'org.nsomatrix.Main'
+}
+
+jar {
+    archiveBaseName.set('NSOMatrixLauncher')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes 'Main-Class': application.mainClass
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}

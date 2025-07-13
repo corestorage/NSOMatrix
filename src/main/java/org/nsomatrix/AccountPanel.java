@@ -1,9 +1,5 @@
 package org.nsomatrix;
 
-import org.nsomatrix.SupabaseStorageClient;
-import org.nsomatrix.DashboardPanel;
-import org.nsomatrix.SupabaseLoginPanel;
-
 import javax.swing.*;
 import java.awt.*;
 
@@ -53,6 +49,7 @@ public class AccountPanel extends JPanel {
         storageClient.setAccessToken(null);
         storageClient.setUserId(null);
         dashboardPanel.clearState();
+        loginPanel.setStatus("Logout successful!");
         cardLayout.show(this, "LOGIN");
     }
 

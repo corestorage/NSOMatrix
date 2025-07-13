@@ -25,7 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.prefs.Preferences;
 
-import org.nsomatrix.UI;
+
 
 public class ModsPanel extends JPanel {
     private final DefaultListModel<RemoteMod> remoteModsModel = new DefaultListModel<>();

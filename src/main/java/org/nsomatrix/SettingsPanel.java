@@ -120,8 +120,10 @@ public class SettingsPanel extends JPanel {
         outerContentPanel.add(formPanel, BorderLayout.NORTH);
 
         JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton checkUpdatesBtn = new JButton("Check for Updates");
         JButton saveBtn = new JButton("Save");
         JButton cancelBtn = new JButton("Cancel");
+        buttonsPanel.add(checkUpdatesBtn);
         buttonsPanel.add(cancelBtn);
         buttonsPanel.add(saveBtn);
         add(buttonsPanel, BorderLayout.SOUTH);
@@ -134,6 +136,7 @@ public class SettingsPanel extends JPanel {
             loadSettingsToUI(); // refresh originals on save
         });
         cancelBtn.addActionListener(e -> onCancel());
+        checkUpdatesBtn.addActionListener(e -> onCheckForUpdates());
     }
 
     private void loadSettingsToUI() {
@@ -180,5 +183,72 @@ public class SettingsPanel extends JPanel {
         downloadDirField.setText(originalDownloadDir);
         themeSelector.setSelectedItem(originalTheme);
         emulatorSelector.setSelectedItem(originalEmulator);
+    }
+
+    private void onCheckForUpdates() {
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            String latestVersion = null;
+            boolean updateAvailable = false;
+
+            @Override
+            protected Void doInBackground() throws Exception {
+                try {
+                    latestVersion = UpdateChecker.getLatestVersion();
+                    updateAvailable = UpdateChecker.isUpdateAvailable(Main.APP_VERSION, latestVersion);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    latestVersion = null; // Indicate error
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                if (latestVersion == null) {
+                    JOptionPane.showMessageDialog(SettingsPanel.this,
+                            "Failed to check for updates. Please check your internet connection.",
+                            "Update Check Failed",
+                            JOptionPane.ERROR_MESSAGE);
+                } else if (updateAvailable) {
+                    int dialogResult = JOptionPane.showConfirmDialog(SettingsPanel.this,
+                            "A new version (v" + latestVersion + ") is available!\nWould you like to download and install it?",
+                            "Update Available",
+                            JOptionPane.YES_NO_OPTION);
+
+                    if (dialogResult == JOptionPane.YES_OPTION) {
+                        SwingWorker<Void, Void> downloadWorker = new SwingWorker<>() {
+                            @Override
+                            protected Void doInBackground() throws Exception {
+                                File tempDir = new File(System.getProperty("java.io.tmpdir"));
+                                File downloadedJar = new File(tempDir, "NSOMatrixLauncher-new.jar");
+
+                                UpdateChecker.downloadUpdate(latestVersion, downloadedJar);
+                                UpdateChecker.applyUpdateAndRestart(downloadedJar);
+                                return null;
+                            }
+
+                            @Override
+                            protected void done() {
+                                try {
+                                    get();
+                                } catch (Exception ex) {
+                                    JOptionPane.showMessageDialog(SettingsPanel.this,
+                                            "Update download failed: " + ex.getMessage(),
+                                            "Update Error",
+                                            JOptionPane.ERROR_MESSAGE);
+                                }
+                            }
+                        };
+                        downloadWorker.execute();
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(SettingsPanel.this,
+                            "You are running the latest version (v" + Main.APP_VERSION + ").",
+                            "No Update Available",
+                            JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
+        };
+        worker.execute();
     }
 }

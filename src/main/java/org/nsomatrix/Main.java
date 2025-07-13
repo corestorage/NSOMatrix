@@ -8,6 +8,8 @@ import javax.swing.*;
 import java.util.prefs.Preferences;
 
 public class Main {
+    public static final String APP_VERSION = "1.0.0"; // Current application version
+
     public static void main(String[] args) {
         SplashScreen splash = new SplashScreen(600, 400);
         splash.runSequence();

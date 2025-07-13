@@ -1,7 +1,4 @@
-
 package org.nsomatrix;
-
-import org.nsomatrix.SupabaseStorageClient;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -22,6 +19,7 @@ public class DashboardPanel extends JPanel {
     private JButton downloadButton;
     private JButton deleteButton;
     private JButton refreshButton;
+    private JButton logoutButton; // Added logout button
 
     public DashboardPanel() {
         setLayout(new BorderLayout(10, 10));
@@ -39,11 +37,13 @@ public class DashboardPanel extends JPanel {
         downloadButton = new JButton("Download");
         deleteButton = new JButton("Delete");
         refreshButton = new JButton("Refresh");
+        logoutButton = new JButton("Logout"); // Initialized logout button
 
         buttonsPanel.add(uploadButton);
         buttonsPanel.add(downloadButton);
         buttonsPanel.add(deleteButton);
         buttonsPanel.add(refreshButton);
+        buttonsPanel.add(logoutButton); // Added logout button to panel
 
         add(buttonsPanel, BorderLayout.SOUTH);
 
@@ -51,6 +51,18 @@ public class DashboardPanel extends JPanel {
         refreshButton.addActionListener(e -> fetchFileList());
         downloadButton.addActionListener(e -> onDownload());
         deleteButton.addActionListener(e -> onDelete());
+        logoutButton.addActionListener(e -> onLogout()); // Added listener for logout
+    }
+
+    private void onLogout() {
+        // Find the parent AccountPanel and call its logout method
+        Component parent = this.getParent();
+        while (parent != null && !(parent instanceof AccountPanel)) {
+            parent = parent.getParent();
+        }
+        if (parent instanceof AccountPanel) {
+            ((AccountPanel) parent).logout();
+        }
     }
 
     public void setUserEmail(String email) {
@@ -91,17 +103,9 @@ public class DashboardPanel extends JPanel {
                         files.forEach(fileListModel::addElement);
                     }
                 } catch (Exception e) {
-                    // Print full stack trace to console for debugging
                     e.printStackTrace();
-
-                    // Show detailed error message to user
-                    String msg = e.getMessage();
-                    if (e.getCause() != null) {
-                        msg += "\nCause: " + e.getCause().getMessage();
-                    }
-
                     JOptionPane.showMessageDialog(DashboardPanel.this,
-                            "Failed to fetch file list:\n" + msg,
+                            "Failed to fetch file list:\n" + e.getMessage(),
                             "Error",
                             JOptionPane.ERROR_MESSAGE);
                 }
@@ -110,7 +114,6 @@ public class DashboardPanel extends JPanel {
         worker.execute();
     }
 
-    // onUpload, onDownload and onDelete methods unchanged, or similarly add try/catch with e.printStackTrace()
     private void onUpload() {
         if (storageClient == null) return;
 
@@ -135,8 +138,12 @@ public class DashboardPanel extends JPanel {
                                 "Upload completed.", "Success", JOptionPane.INFORMATION_MESSAGE);
                     } catch (Exception e) {
                         e.printStackTrace();
+                        String errorMessage = "Upload failed: " + e.getMessage();
+                        if (e.getMessage() != null && e.getMessage().contains("File size exceeds the maximum allowed limit")) {
+                            errorMessage = "Upload failed: File size exceeds the maximum allowed limit of 10MB.";
+                        }
                         JOptionPane.showMessageDialog(DashboardPanel.this,
-                                "Upload failed:\n" + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                                errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
                     }
                 }
             };
@@ -195,7 +202,7 @@ public class DashboardPanel extends JPanel {
         }
 
         int confirm = JOptionPane.showConfirmDialog(this,
-                "Are you sure you want to delete '" + selected + "'?",
+                "Are you sure you want to delete '" + selected + "'",
                 "Confirm Delete",
                 JOptionPane.YES_NO_OPTION);
 
@@ -224,4 +231,5 @@ public class DashboardPanel extends JPanel {
             worker.execute();
         }
     }
+
 }

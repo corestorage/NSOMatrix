@@ -43,7 +43,7 @@ public class UpdateChecker {
         }
     }
 
-    public static void applyUpdateAndRestart(File downloadedJar) throws IOException {
+    public static void applyUpdateAndRestart(File downloadedJar, String latestVersion) throws IOException {
         String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
         File currentJar;
         try {
@@ -52,21 +52,46 @@ public class UpdateChecker {
             throw new IOException("Failed to get current JAR location: " + e.getMessage(), e);
         }
 
-        // Create a temporary script to replace the JAR and restart
-        // This script is for Linux/macOS. For Windows, a .bat file would be needed.
-        File tempScript = File.createTempFile("updater", ".sh");
-        tempScript.setExecutable(true);
+        // Determine the new JAR filename
+        String newJarName = "NSOMatrixLauncher-" + latestVersion + ".jar";
+        File newJarFile = new File(currentJar.getParentFile(), newJarName);
+
+        String os = System.getProperty("os.name").toLowerCase();
+        boolean isWindows = os.contains("win");
+
+        File tempScript;
+        String scriptContent;
+        String[] command;
+
+        if (isWindows) {
+            tempScript = File.createTempFile("updater", ".bat");
+            scriptContent =
+                    "@echo off\n" +
+                    "timeout /t 2 /nobreak > NUL\n" + // Give time for the current app to exit
+                    "del \"" + currentJar.getAbsolutePath() + "\"\n" + // Remove the old JAR
+                    "move /Y \"" + downloadedJar.getAbsolutePath() + "\" \"" + newJarFile.getAbsolutePath() + "\"\n" + // Move downloaded to new name
+                    "start \"\" \"" + javaBin + "\" -jar \"" + newJarFile.getAbsolutePath() + "\"\n" + // Launch in background
+                    "del \"" + tempScript.getAbsolutePath() + "\"\n"; // Clean up script
+            command = new String[]{"cmd.exe", "/c", tempScript.getAbsolutePath()};
+        } else { // Linux or macOS
+            tempScript = File.createTempFile("updater", ".sh");
+            tempScript.setExecutable(true);
+            scriptContent =
+                    "#!/bin/bash\n" +
+                    "sleep 2\n" + // Give time for the current app to exit
+                    "rm -f \"" + currentJar.getAbsolutePath() + "\"\n" + // Remove the old JAR
+                    "mv \"" + downloadedJar.getAbsolutePath() + "\" \"" + newJarFile.getAbsolutePath() + "\"\n" + // Move downloaded to new name
+                    "java -jar \"" + newJarFile.getAbsolutePath() + "\" &\n" + // Launch in background
+                    "rm \"" + tempScript.getAbsolutePath() + "\"\n"; // Clean up script
+            command = new String[]{"bash", tempScript.getAbsolutePath()};
+        }
 
         try (PrintWriter pw = new PrintWriter(tempScript)) {
-            pw.println("#!/bin/bash");
-            pw.println("sleep 2"); // Give time for the current app to exit
-            pw.println("mv \"" + downloadedJar.getAbsolutePath() + "\" \"" + currentJar.getAbsolutePath() + "\"");
-            pw.println("java -jar \"" + currentJar.getAbsolutePath() + "\" &"); // Launch in background
-            pw.println("rm \"" + tempScript.getAbsolutePath() + "\""); // Clean up script
+            pw.println(scriptContent);
         }
 
         // Execute the script and exit the current application
-        new ProcessBuilder("bash", tempScript.getAbsolutePath()).start();
+        new ProcessBuilder(command).start();
         System.exit(0);
     }
 }

@@ -223,7 +223,7 @@ public class SettingsPanel extends JPanel {
                                 File downloadedJar = new File(tempDir, "NSOMatrixLauncher-new.jar");
 
                                 UpdateChecker.downloadUpdate(latestVersion, downloadedJar);
-                                UpdateChecker.applyUpdateAndRestart(downloadedJar);
+                                UpdateChecker.applyUpdateAndRestart(downloadedJar, latestVersion);
                                 return null;
                             }
 

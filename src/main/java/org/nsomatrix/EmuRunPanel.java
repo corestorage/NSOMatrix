@@ -1,7 +1,5 @@
 package org.nsomatrix;
 
-
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -27,7 +25,6 @@ public class EmuRunPanel extends JPanel {
     private final JLabel messageLabel;
     private final JPanel emptyStatePanel;
 
-    // Remember last directory used for JFileChooser
     private File lastUsedDir = null;
 
     public EmuRunPanel(UI ui) {
@@ -36,7 +33,6 @@ public class EmuRunPanel extends JPanel {
         setLayout(new BorderLayout(10, 10));
         setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // Use platform default font for labels and sizes
         Font labelFont = UIManager.getFont("Label.font").deriveFont(Font.BOLD, 18f);
         JLabel gamesLabel = new JLabel("Available Games");
         gamesLabel.setFont(labelFont);
@@ -71,10 +67,13 @@ public class EmuRunPanel extends JPanel {
         JPanel bottomPanel = new JPanel(new BorderLayout(10, 10));
         JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
 
+        JButton addBtn = new JButton("Add Game");
+        addBtn.addActionListener(e -> addGame());
+
         launchBtn = new JButton("Launch");
         launchBtn.setEnabled(false);
-        launchBtn.addActionListener(e -> launchSelectedGame());
-        // Conditional button styling to avoid macOS Aqua painting issues
+        launchBtn.addActionListener(e -> launchSelectedGame()); // Ensure direct launch on button
+
         if (!UIManager.getLookAndFeel().getName().toLowerCase().contains("aqua")) {
             launchBtn.setBackground(new Color(0, 128, 0));
             launchBtn.setForeground(Color.WHITE);
@@ -82,12 +81,10 @@ public class EmuRunPanel extends JPanel {
             launchBtn.setBorderPainted(false);
         }
 
-        JButton addBtn = new JButton("Add Game");
-        addBtn.addActionListener(e -> addGame());
-
         removeBtn = new JButton("Remove");
         removeBtn.setEnabled(false);
         removeBtn.addActionListener(e -> removeSelectedGame());
+
         if (!UIManager.getLookAndFeel().getName().toLowerCase().contains("aqua")) {
             removeBtn.setBackground(new Color(200, 0, 0));
             removeBtn.setForeground(Color.WHITE);
@@ -112,7 +109,7 @@ public class EmuRunPanel extends JPanel {
         gamesList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
+                if (e.getClickCount() == 2) { // Double-click launches game immediately
                     launchSelectedGame();
                 }
             }
@@ -167,7 +164,7 @@ public class EmuRunPanel extends JPanel {
 
                         int launchedCount = 0;
                         for (File f : droppedFiles) {
-                            if (isJarFile(f) && f.canRead()) {  // <-- check readability
+                            if (isJarFile(f) && f.canRead()) {
                                 String emulator = appUI.getSelectedEmulator();
                                 EmulatorLauncher.launch(emulator, f);
 
@@ -239,14 +236,14 @@ public class EmuRunPanel extends JPanel {
         }
     }
 
+    // <-- This is the key updated method for your use case:
     private void launchSelectedGame() {
         GameEntry selectedEntry = gamesList.getSelectedValue();
         if (selectedEntry != null) {
             String emulator = appUI.getSelectedEmulator();
-            EmulatorLauncher.launch(emulator, selectedEntry.getFile());
+            EmulatorLauncher.launch(emulator, selectedEntry.getFile()); // Launch with file directly
             setMessage("Launching: " + selectedEntry.getFile().getName());
 
-            // Update last played timestamp
             selectedEntry.setLastPlayedTimestamp(System.currentTimeMillis());
             saveGamesToStorage();
             gamesList.repaint();
@@ -280,11 +277,9 @@ public class EmuRunPanel extends JPanel {
     }
 
     private void saveGamesToStorage() {
-        // Use UTF-8 explicitly
         try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(STORAGE_FILE), StandardCharsets.UTF_8))) {
             for (int i = 0; i < gamesListModel.size(); i++) {
                 GameEntry entry = gamesListModel.get(i);
-                // Use canonical path for storage
                 try {
                     String path = entry.getFile().getCanonicalPath();
                     pw.println(path + "|" + entry.getLastPlayedTimestamp());
@@ -301,21 +296,20 @@ public class EmuRunPanel extends JPanel {
     private void loadGamesFromStorage() {
         if (!STORAGE_FILE.exists()) return;
 
-        try (BufferedReader br = new BufferedReader(
-                new InputStreamReader(new FileInputStream(STORAGE_FILE), StandardCharsets.UTF_8))) {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(STORAGE_FILE), StandardCharsets.UTF_8))) {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split("\\|");
-                File file = new File(parts[0]);
+                File f = new File(parts[0]);
                 long ts = 0L;
                 if (parts.length > 1) {
                     try {
                         ts = Long.parseLong(parts[1]);
                     } catch (NumberFormatException ignored) {}
                 }
-                if (file.exists() && isJarFile(file) && file.canRead()) {
-                    GameEntry entry = new GameEntry(file, ts);
-                    if (!containsFile(file)) {
+                if (f.exists() && isJarFile(f) && f.canRead()) {
+                    GameEntry entry = new GameEntry(f, ts);
+                    if (!containsFile(f)) {
                         gamesListModel.addElement(entry);
                     }
                 }

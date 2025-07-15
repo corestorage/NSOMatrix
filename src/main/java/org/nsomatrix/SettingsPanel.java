@@ -186,7 +186,7 @@ public class SettingsPanel extends JPanel {
     }
 
     private void onCheckForUpdates() {
-        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             String latestVersion = null;
             boolean updateAvailable = false;
 
@@ -216,7 +216,7 @@ public class SettingsPanel extends JPanel {
                             JOptionPane.YES_NO_OPTION);
 
                     if (dialogResult == JOptionPane.YES_OPTION) {
-                        SwingWorker<Void, Void> downloadWorker = new SwingWorker<>() {
+                        SwingWorker<Void, Void> downloadWorker = new SwingWorker<Void, Void>() {
                             @Override
                             protected Void doInBackground() throws Exception {
                                 File tempDir = new File(System.getProperty("java.io.tmpdir"));

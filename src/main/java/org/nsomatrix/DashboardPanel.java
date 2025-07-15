@@ -86,7 +86,7 @@ public class DashboardPanel extends JPanel {
 
         fileListModel.clear();
 
-        SwingWorker<List<String>, Void> worker = new SwingWorker<>() {
+        SwingWorker<List<String>, Void> worker = new SwingWorker<List<String>, Void>() {
             @Override
             protected List<String> doInBackground() throws Exception {
                 return storageClient.listFiles();
@@ -122,7 +122,7 @@ public class DashboardPanel extends JPanel {
         if (result == JFileChooser.APPROVE_OPTION) {
             File selectedFile = chooser.getSelectedFile();
 
-            SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() throws Exception {
                     storageClient.uploadFile(selectedFile);
@@ -167,7 +167,7 @@ public class DashboardPanel extends JPanel {
         if (result == JFileChooser.APPROVE_OPTION) {
             File saveFile = chooser.getSelectedFile();
 
-            SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() throws Exception {
                     storageClient.downloadFile(selected, saveFile);
@@ -207,7 +207,7 @@ public class DashboardPanel extends JPanel {
                 JOptionPane.YES_NO_OPTION);
 
         if (confirm == JOptionPane.YES_OPTION) {
-            SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() throws Exception {
                     storageClient.deleteFile(selected);

@@ -8,10 +8,10 @@ import java.awt.*;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -214,17 +214,15 @@ public class ModsPanel extends JPanel {
 
         Executors.newSingleThreadExecutor().submit(() -> {
             try {
-                HttpClient client = HttpClient.newHttpClient();
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(apiUrl))
-                        .header("Accept", "application/vnd.github.v3+json")
-                        .build();
+                URL url = new URL(apiUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
 
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-                if (response.statusCode() != 200) {
+                int responseCode = conn.getResponseCode();
+                if (responseCode != 200) {
                     SwingUtilities.invokeLater(() -> {
-                        setStatus("Failed to fetch mods: HTTP " + response.statusCode());
+                        setStatus("Failed to fetch mods: HTTP " + responseCode);
                         fetchModsBtn.setEnabled(true);
                     });
                     return;
@@ -233,25 +231,27 @@ public class ModsPanel extends JPanel {
                 ObjectMapper mapper = new ObjectMapper();
                 List<RemoteMod> fetchedMods = new ArrayList<>();
 
-                if ("Internet Archive".equals(source)) {
-                    JsonNode root = mapper.readTree(response.body());
-                    JsonNode filesArray = root.get("files");
-                    if (filesArray != null && filesArray.isArray()) {
-                        for (JsonNode fileNode : filesArray) {
-                            String name = fileNode.get("name").asText();
-                            if (name.toLowerCase().endsWith(".jar")) {
-                                String downloadUrl = "https://archive.org/download/nsomtxmods/" + name;
-                                fetchedMods.add(new RemoteMod(name, downloadUrl));
+                try (InputStream is = conn.getInputStream()) {
+                    if ("Internet Archive".equals(source)) {
+                        JsonNode root = mapper.readTree(is);
+                        JsonNode filesArray = root.get("files");
+                        if (filesArray != null && filesArray.isArray()) {
+                            for (JsonNode fileNode : filesArray) {
+                                String name = fileNode.get("name").asText();
+                                if (name.toLowerCase().endsWith(".jar")) {
+                                    String downloadUrl = "https://archive.org/download/nsomtxmods/" + name;
+                                    fetchedMods.add(new RemoteMod(name, downloadUrl));
+                                }
                             }
                         }
-                    }
-                } else {
-                    JsonNode root = mapper.readTree(response.body());
-                    for (JsonNode node : root) {
-                        String name = node.get("name").asText();
-                        String downloadUrl = node.get("download_url").asText();
-                        if (name.toLowerCase().endsWith(".jar")) {
-                            fetchedMods.add(new RemoteMod(name, downloadUrl));
+                    } else {
+                        JsonNode root = mapper.readTree(is);
+                        for (JsonNode node : root) {
+                            String name = node.get("name").asText();
+                            String downloadUrl = node.get("download_url").asText();
+                            if (name.toLowerCase().endsWith(".jar")) {
+                                fetchedMods.add(new RemoteMod(name, downloadUrl));
+                            }
                         }
                     }
                 }
@@ -287,15 +287,17 @@ public class ModsPanel extends JPanel {
                     if (targetFile.exists()) {
                         continue;
                     }
-                    HttpClient client = HttpClient.newHttpClient();
-                    HttpRequest request = HttpRequest.newBuilder()
-                            .uri(URI.create(mod.downloadUrl))
-                            .build();
-                    HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-                    if (response.statusCode() == 200) {
-                        try (InputStream in = response.body();
+                    URL url = new URL(mod.downloadUrl);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    if (conn.getResponseCode() == 200) {
+                        try (InputStream in = conn.getInputStream();
                              FileOutputStream fos = new FileOutputStream(targetFile)) {
-                            in.transferTo(fos);
+                            byte[] buffer = new byte[4096];
+                            int bytesRead;
+                            while ((bytesRead = in.read(buffer)) != -1) {
+                                fos.write(buffer, 0, bytesRead);
+                            }
                         }
                         successCount++;
                     }

@@ -1,61 +1,106 @@
 package org.nsomatrix;
 
 import javax.swing.*;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
+import java.nio.file.Files;
 
 public class EmulatorLauncher {
 
-    public static void launch(String emulatorName, File jarFile) {
-        String emulatorJarName;
+    private static File extractResourceToTempFile(String resourcePath, String filename) throws IOException {
+        InputStream is = EmulatorLauncher.class.getResourceAsStream(resourcePath);
+        if (is == null) {
+            throw new FileNotFoundException("Resource not found: " + resourcePath);
+        }
+        File tempFile = Files.createTempFile(filename, null).toFile();
+        // Don't delete on exit here, delete manually after process ends
 
-        switch (emulatorName.toLowerCase()) {
-            case "angelchip":
-                emulatorJarName = "angelchip.jar";
-                break;
-            case "microemulator":
-            default:
-                emulatorJarName = "microemulator.jar";
-                break;
+        try (OutputStream os = new FileOutputStream(tempFile)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = is.read(buffer)) != -1) {
+                os.write(buffer, 0, read);
+            }
         }
 
-        File emulatorJar = new File("libs", emulatorJarName);
-        try {
-            emulatorJar = emulatorJar.getCanonicalFile();
-            jarFile = jarFile.getCanonicalFile();
-        } catch (IOException e) {
-            // Could show message or log
-        }
+        return tempFile;
+    }
 
-        if (!emulatorJar.exists() || !emulatorJar.canRead()) {
-            JOptionPane.showMessageDialog(null,
-                    emulatorJarName + " not found or unreadable in libs folder",
-                    "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+    public static void launch(String emulatorName, File gameJarFile) {
+        new Thread(() -> {
+            String emulatorJarName;
 
-        if (!jarFile.exists() || !jarFile.canRead()) {
-            JOptionPane.showMessageDialog(null,
-                    "Game file not found or unreadable: " + jarFile.getName(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+            switch (emulatorName.toLowerCase()) {
+                case "angelchip":
+                    emulatorJarName = "angelchip.jar";
+                    break;
+                case "microemulator":
+                default:
+                    emulatorJarName = "microemulator.jar";
+                    break;
+            }
 
-        // Use absolute java path or simple "java" command (assuming Java in PATH)
-        String javaExec = "java";
+            String resourcePath = "/libs/" + emulatorJarName;
+            File extractedEmulatorJar;
+            final File finalGameJarFile;
+            try {
+                extractedEmulatorJar = extractResourceToTempFile(resourcePath, emulatorJarName);
+                finalGameJarFile = gameJarFile.getCanonicalFile();
+            } catch (IOException e) {
+                SwingUtilities.invokeLater(() ->
+                        JOptionPane.showMessageDialog(null,
+                                "Failed to extract emulator jar: " + e.getMessage(),
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE)
+                );
+                return;
+            }
 
-        try {
-            ProcessBuilder pb = new ProcessBuilder(
-                    javaExec, "-jar",
-                    emulatorJar.getAbsolutePath(),
-                    jarFile.getAbsolutePath()
-            );
-            pb.start();
+            if (!finalGameJarFile.exists() || !finalGameJarFile.canRead()) {
+                SwingUtilities.invokeLater(() ->
+                        JOptionPane.showMessageDialog(null,
+                                "Game file not found or unreadable: " + finalGameJarFile.getName(),
+                                "Error", JOptionPane.ERROR_MESSAGE)
+                );
+                return;
+            }
 
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(null,
-                    "Failed to launch " + emulatorName + ": " + e.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
-        }
+            String javaExec = "java"; // Or full path to java executable
+
+            try {
+                ProcessBuilder pb = new ProcessBuilder(
+                        javaExec, "-jar",
+                        extractedEmulatorJar.getAbsolutePath(),
+                        finalGameJarFile.getAbsolutePath()
+                );
+                pb.inheritIO();
+
+                Process process = pb.start();
+
+                // Wait for emulator to finish and clean up in a separate thread
+                process.waitFor();
+
+                // Clean up extracted jar file
+                if (!extractedEmulatorJar.delete()) {
+                    System.err.println("Warning: Could not delete temp jar: " + extractedEmulatorJar.getAbsolutePath());
+                }
+
+                int exitCode = process.exitValue();
+                if (exitCode != 0) {
+                    SwingUtilities.invokeLater(() ->
+                            JOptionPane.showMessageDialog(null,
+                                    "Emulator process exited with code: " + exitCode,
+                                    "Error",
+                                    JOptionPane.ERROR_MESSAGE)
+                    );
+                }
+            } catch (IOException | InterruptedException e) {
+                SwingUtilities.invokeLater(() ->
+                        JOptionPane.showMessageDialog(null,
+                                "Failed to launch emulator: " + e.getMessage(),
+                                "Error", JOptionPane.ERROR_MESSAGE)
+                );
+                Thread.currentThread().interrupt();
+            }
+        }).start();
     }
 }

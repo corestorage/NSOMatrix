@@ -1,41 +1,66 @@
 plugins {
     id 'java'
-    id 'application' // ✅ Add this
+    id 'application'
 }
 
 group = 'org.nsomatrix'
-version = '1.0-SNAPSHOT'
+version = '1.0'
 
 repositories {
     mavenCentral()
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    implementation fileTree(dir: 'libs', include: ['*.jar']) // ✅ Load emulators at runtime
     implementation 'com.formdev:flatlaf:3.2'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
     implementation 'com.fasterxml.jackson.core:jackson-core:2.15.2'
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.2'
-
-}
-
-test {
-    useJUnitPlatform()
 }
 
 application {
     mainClass = 'org.nsomatrix.Main'
 }
 
+tasks.processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
 jar {
     archiveBaseName.set('NSOMatrixLauncher')
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
     manifest {
         attributes 'Main-Class': application.mainClass
     }
+
+    // ✅ Include compiled app classes (Main.class, SplashScreen, etc.)
     from {
-        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+        sourceSets.main.output
     }
+
+    // ✅ Include runtime libraries (like FlatLaf, Jackson)
+    from {
+        configurations.runtimeClasspath.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+
+    // ✅ Embed emulator .jars inside the JAR as-is under /libs (do NOT unzip)
+    from('libs') {
+        into 'libs'
+        include '*.jar'
+    }
+}
+
+tasks.build {
+    dependsOn jar
 }

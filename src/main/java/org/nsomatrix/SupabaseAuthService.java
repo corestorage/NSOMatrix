@@ -5,23 +5,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Optional;
 
 public class SupabaseAuthService {
 
-    private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     public SupabaseAuthService() {
-        httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(15))
-                .build();
         objectMapper = new ObjectMapper();
     }
 
@@ -38,21 +34,28 @@ public class SupabaseAuthService {
         body.put("email", email);
         body.put("password", password);
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(SupabaseClient.SUPABASE_URL + endpoint))
-                .header("Content-Type", "application/json")
-                .header("apikey", SupabaseClient.SUPABASE_ANON_KEY)
-                .header("Authorization", "Bearer " + SupabaseClient.SUPABASE_ANON_KEY)
-                .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
-                .build();
+        URL url = new URL(SupabaseClient.SUPABASE_URL + endpoint);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("apikey", SupabaseClient.SUPABASE_ANON_KEY);
+        conn.setRequestProperty("Authorization", "Bearer " + SupabaseClient.SUPABASE_ANON_KEY);
+        conn.setDoOutput(true);
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        try (OutputStream os = conn.getOutputStream()) {
+            byte[] input = body.toString().getBytes(StandardCharsets.UTF_8);
+            os.write(input, 0, input.length);
+        }
 
-        if (response.statusCode() == 200 || response.statusCode() == 201) {
-            AuthResponse authResponse = objectMapper.readValue(response.body(), AuthResponse.class);
-            return Optional.of(authResponse);
+        int responseCode = conn.getResponseCode();
+
+        if (responseCode == 200 || responseCode == 201) {
+            try (InputStream is = conn.getInputStream()) {
+                AuthResponse authResponse = objectMapper.readValue(is, AuthResponse.class);
+                return Optional.of(authResponse);
+            }
         } else {
-            System.err.println("Failed auth request, status: " + response.statusCode() + ", body: " + response.body());
+            System.err.println("Failed auth request, status: " + responseCode);
             return Optional.empty();
         }
     }

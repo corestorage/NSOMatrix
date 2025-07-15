@@ -50,7 +50,7 @@ public class SupabaseLoginPanel extends JPanel {
         loginButton.setEnabled(false);
         signupButton.setEnabled(false);
 
-        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             Optional<SupabaseAuthService.AuthResponse> resp;
 
             @Override
@@ -86,7 +86,7 @@ public class SupabaseLoginPanel extends JPanel {
         loginButton.setEnabled(false);
         signupButton.setEnabled(false);
 
-        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             Optional<SupabaseAuthService.AuthResponse> resp;
 
             @Override

@@ -3,6 +3,11 @@ package org.nsomatrix;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.event.ListDataListener;
+import javax.swing.event.ListDataEvent;
+import javax.swing.event.ListSelectionListener;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.DefaultListCellRenderer;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.*;
@@ -54,10 +59,10 @@ public class EmuRunPanel extends JPanel {
 
         add(overlayPanel, BorderLayout.CENTER);
 
-        gamesListModel.addListDataListener(new javax.swing.event.ListDataListener() {
-            @Override public void intervalAdded(javax.swing.event.ListDataEvent e) { updateEmptyStateVisibility(); }
-            @Override public void intervalRemoved(javax.swing.event.ListDataEvent e) { updateEmptyStateVisibility(); }
-            @Override public void contentsChanged(javax.swing.event.ListDataEvent e) { updateEmptyStateVisibility(); }
+        gamesListModel.addListDataListener(new ListDataListener() {
+            @Override public void intervalAdded(ListDataEvent e) { updateEmptyStateVisibility(); }
+            @Override public void intervalRemoved(ListDataEvent e) { updateEmptyStateVisibility(); }
+            @Override public void contentsChanged(ListDataEvent e) { updateEmptyStateVisibility(); }
         });
         updateEmptyStateVisibility();
 
@@ -72,7 +77,7 @@ public class EmuRunPanel extends JPanel {
 
         launchBtn = new JButton("Launch");
         launchBtn.setEnabled(false);
-        launchBtn.addActionListener(e -> launchSelectedGame()); // Ensure direct launch on button
+        launchBtn.addActionListener(e -> launchSelectedGame());
 
         if (!UIManager.getLookAndFeel().getName().toLowerCase().contains("aqua")) {
             launchBtn.setBackground(new Color(0, 128, 0));
@@ -104,7 +109,12 @@ public class EmuRunPanel extends JPanel {
 
         add(bottomPanel, BorderLayout.SOUTH);
 
-        gamesList.addListSelectionListener(e -> updateButtons());
+        gamesList.addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                updateButtons();
+            }
+        });
 
         gamesList.addMouseListener(new MouseAdapter() {
             @Override
@@ -146,7 +156,8 @@ public class EmuRunPanel extends JPanel {
 
     private void enableFileDragAndDrop(Component comp) {
         new DropTarget(comp, new DropTargetListener() {
-            @Override public void dragEnter(DropTargetDragEvent dtde) {
+            @Override
+            public void dragEnter(DropTargetDragEvent dtde) {
                 if (canAcceptDrop(dtde)) dtde.acceptDrag(DnDConstants.ACTION_COPY);
                 else dtde.rejectDrag();
             }
@@ -164,14 +175,11 @@ public class EmuRunPanel extends JPanel {
 
                         int launchedCount = 0;
                         for (File f : droppedFiles) {
-                            if (isJarFile(f) && f.canRead()) {
-                                String emulator = appUI.getSelectedEmulator();
-                                EmulatorLauncher.launch(emulator, f);
-
-                                if (!containsFile(f)) {
-                                    gamesListModel.addElement(new GameEntry(f, 0));
-                                    saveGamesToStorage();
-                                }
+                            if (f.isDirectory()) {
+                                // Recursively add or launch JAR files in dropped directories
+                                launchedCount += processDirectory(f);
+                            } else if (isJarFile(f) && f.canRead()) {
+                                launchGameAndAddIfNew(f);
                                 launchedCount++;
                             }
                         }
@@ -198,8 +206,36 @@ public class EmuRunPanel extends JPanel {
         });
     }
 
+    // Recursively process directories to find JAR files
+    private int processDirectory(File directory) {
+        int count = 0;
+        File[] files = directory.listFiles();
+        if (files == null) return 0;
+
+        for (File f : files) {
+            if (f.isDirectory()) {
+                count += processDirectory(f);
+            } else if (isJarFile(f) && f.canRead()) {
+                launchGameAndAddIfNew(f);
+                count++;
+            }
+        }
+        return count;
+    }
+
     private boolean isJarFile(File file) {
         return file.isFile() && file.getName().toLowerCase().endsWith(".jar");
+    }
+
+    // Launch a game and add it to list if not already there
+    private void launchGameAndAddIfNew(File jar) {
+        String emulator = appUI.getSelectedEmulator();
+        EmulatorLauncher.launch(emulator, jar);
+
+        if (!containsFile(jar)) {
+            gamesListModel.addElement(new GameEntry(jar, 0));
+            saveGamesToStorage();
+        }
     }
 
     private void addGame() {
@@ -230,19 +266,44 @@ public class EmuRunPanel extends JPanel {
         int idx = gamesList.getSelectedIndex();
         if (idx >= 0) {
             GameEntry removed = gamesListModel.getElementAt(idx);
+
+            // Confirm removal
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Are you sure you want to remove \"" + removed.getFile().getName() + "\"?",
+                    "Confirm remove", JOptionPane.YES_NO_OPTION);
+            if (confirm != JOptionPane.YES_OPTION) return;
+
             gamesListModel.remove(idx);
             saveGamesToStorage();
             setMessage("Removed: " + removed.getFile().getName());
         }
     }
 
-    // <-- This is the key updated method for your use case:
     private void launchSelectedGame() {
-        GameEntry selectedEntry = gamesList.getSelectedValue();
+        final GameEntry selectedEntry = gamesList.getSelectedValue();
         if (selectedEntry != null) {
-            String emulator = appUI.getSelectedEmulator();
-            EmulatorLauncher.launch(emulator, selectedEntry.getFile()); // Launch with file directly
-            setMessage("Launching: " + selectedEntry.getFile().getName());
+            final String emulator = appUI.getSelectedEmulator();
+
+            // Disable launch button to prevent multiple click launches
+            launchBtn.setEnabled(false);
+            removeBtn.setEnabled(false);
+
+            // Launch in a background SwingWorker to avoid blocking EDT
+            SwingWorker<Void, Void> launcherWorker = new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    EmulatorLauncher.launch(emulator, selectedEntry.getFile());
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    launchBtn.setEnabled(true);
+                    removeBtn.setEnabled(true);
+                    setMessage("Launching: " + selectedEntry.getFile().getName());
+                }
+            };
+            launcherWorker.execute();
 
             selectedEntry.setLastPlayedTimestamp(System.currentTimeMillis());
             saveGamesToStorage();
@@ -276,21 +337,34 @@ public class EmuRunPanel extends JPanel {
         return false;
     }
 
+    // Save game list info to disk asynchronously (simple async task)
     private void saveGamesToStorage() {
-        try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(STORAGE_FILE), StandardCharsets.UTF_8))) {
-            for (int i = 0; i < gamesListModel.size(); i++) {
-                GameEntry entry = gamesListModel.get(i);
-                try {
-                    String path = entry.getFile().getCanonicalPath();
-                    pw.println(path + "|" + entry.getLastPlayedTimestamp());
-                } catch (IOException ioe) {
-                    ioe.printStackTrace();
+        // Run save in separate thread to avoid blocking EDT
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(STORAGE_FILE), StandardCharsets.UTF_8))) {
+                    for (int i = 0; i < gamesListModel.size(); i++) {
+                        GameEntry entry = gamesListModel.get(i);
+                        try {
+                            String path = entry.getFile().getCanonicalPath();
+                            pw.println(path + "|" + entry.getLastPlayedTimestamp());
+                        } catch (IOException ioe) {
+                            ioe.printStackTrace();
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    // Cannot update UI from background thread, so use invokeLater
+                    SwingUtilities.invokeLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            setMessage("Failed to save games list.");
+                        }
+                    });
                 }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-            setMessage("Failed to save games list.");
-        }
+        }).start();
     }
 
     private void loadGamesFromStorage() {
@@ -387,6 +461,7 @@ public class EmuRunPanel extends JPanel {
                         ? dateFormat.format(new Date(ge.getLastPlayedTimestamp()))
                         : "Never";
 
+                label.setToolTipText(file.getAbsolutePath());
                 label.setText(String.format("<html>%s<br/><small>Size: %d KB | Last Played: %s</small></html>",
                         file.getName(), sizeKb, lastPlayedStr));
             }

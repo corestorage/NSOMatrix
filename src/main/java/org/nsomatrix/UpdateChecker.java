@@ -70,8 +70,9 @@ public class UpdateChecker {
                     "timeout /t 2 /nobreak > NUL\n" + // Give time for the current app to exit
                     "del \"" + currentJar.getAbsolutePath() + "\"\n" + // Remove the old JAR
                     "move /Y \"" + downloadedJar.getAbsolutePath() + "\" \"" + newJarFile.getAbsolutePath() + "\"\n" + // Move downloaded to new name
-                    "start \"\" \"" + javaBin + "\" -jar \"" + newJarFile.getAbsolutePath() + "\"\n" + // Launch in background
-                    "del \"" + tempScript.getAbsolutePath() + "\"\n"; // Clean up script
+                    "start \"\" /B \"" + javaBin + "\" -jar \"" + newJarFile.getAbsolutePath() + "\"\n" + // Launch in background
+                    "del \"" + tempScript.getAbsolutePath() + "\"\n" + // Clean up script
+                    "exit\n"; // Explicitly exit the batch script
             command = new String[]{"cmd.exe", "/c", tempScript.getAbsolutePath()};
         } else { // Linux or macOS
             tempScript = File.createTempFile("updater", ".sh");

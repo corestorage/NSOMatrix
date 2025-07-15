@@ -70,10 +70,10 @@ public class SplashScreen {
         startSpinner();
         for (String msg : messages) {
             setSpinnerBaseText(msg);
-            showSplashStep(1000);
+            showSplashStep(200);
         }
         stopSpinner();
-        showSplash(500);
+        showSplash(100);
     }
 
     public void setSpinnerBaseText(String text) {
